@@ -4,6 +4,10 @@ outputs
 work
 .DS_Store
 *.local
+.env
+.env.*
+!.env.example
+.pnpm-store
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts

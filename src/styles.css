@@ -120,3 +120,35 @@ main { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
 .category-edit { margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
 .limit-edit { display:grid; grid-template-columns:1.3fr 1fr; gap:8px; }
 .delete-category-button { display:flex; align-items:center; justify-content:center; gap:6px; border:0; background:transparent; color:var(--red); font-size:10px; padding:9px; }
+
+.app-loader { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:var(--muted); font-size:12px; }
+.auth-page { min-height:100vh; max-width:480px; margin:0 auto; padding:max(54px,env(safe-area-inset-top)) 20px 35px; display:flex; flex-direction:column; justify-content:center; background:var(--bg); }
+.auth-brand { text-align:center; margin-bottom:30px; }
+.auth-logo { width:62px; height:62px; border-radius:21px; display:grid; place-items:center; margin:0 auto 13px; background:var(--lime); color:#17191f; font-size:28px; font-weight:800; box-shadow:0 12px 30px rgba(114,151,46,.23); }
+.auth-brand h1 { font-size:32px; letter-spacing:-1.2px; margin:0 0 7px; }
+.auth-brand p { color:var(--muted); font-size:12px; margin:0 auto; max-width:280px; line-height:1.6; }
+.auth-card { background:var(--surface); border-radius:25px; box-shadow:var(--shadow); padding:17px; }
+.auth-tabs { display:flex; gap:4px; background:var(--surface-2); padding:4px; border-radius:13px; margin-bottom:17px; }
+.auth-tabs button { flex:1; border:0; padding:10px; border-radius:10px; color:var(--muted); background:transparent; font-size:11px; font-weight:700; }
+.auth-tabs button.active { background:var(--surface); color:var(--text); box-shadow:0 2px 10px rgba(0,0,0,.07); }
+.auth-card form { display:flex; flex-direction:column; gap:13px; }
+.auth-card label { display:flex; flex-direction:column; gap:6px; }
+.auth-card label span { font-size:10px; color:var(--muted); font-weight:700; margin-left:2px; }
+.auth-card input { width:100%; border:1px solid var(--line); background:var(--bg); border-radius:13px; padding:13px; font-size:13px; }
+.auth-card>small { display:block; text-align:center; color:var(--muted); font-size:9px; margin-top:14px; }
+.auth-error,.auth-success { border-radius:11px; padding:9px 10px; margin:0; font-size:10px; line-height:1.4; }
+.auth-error { background:color-mix(in srgb,var(--red) 11%,transparent); color:var(--red); }
+.auth-success { background:var(--green-soft); color:var(--green); }
+.auth-signout { width:100%; border:0; background:transparent; color:var(--muted); margin-top:12px; padding:8px; font-size:10px; }
+
+.cloud-account { display:flex; align-items:center; gap:10px; padding:13px 14px; border-bottom:1px solid var(--line); }
+.cloud-account .grow { display:flex; flex-direction:column; gap:3px; }
+.cloud-account b { font-size:12px; }.cloud-account small { color:var(--muted); font-size:9px; }
+.cloud-status { width:8px; height:8px; border-radius:50%; background:var(--green); }.cloud-status.saving{background:var(--yellow)}.cloud-status.error{background:var(--red)}
+.cloud-select,.family-name { min-height:53px; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); font-size:11px; }
+.cloud-select>span,.family-name>span { color:var(--muted); }.cloud-select select { max-width:180px; border:0; background:transparent; text-align:right; font-weight:700; }
+.member-stack { padding:8px 14px; border-bottom:1px solid var(--line); }
+.member-stack>div { display:flex; align-items:center; gap:9px; padding:6px 0; }.member-stack .avatar{width:30px;height:30px;font-size:10px}.member-stack>div>div{display:flex;flex-direction:column;gap:2px}.member-stack b{font-size:10px}.member-stack small{font-size:8px;color:var(--muted)}
+.invite-code { width:100%; display:flex; align-items:center; justify-content:space-between; border:0; border-bottom:1px solid var(--line); background:transparent; padding:12px 14px; text-align:left; }.invite-code div{display:flex;flex-direction:column;gap:3px}.invite-code small{font-size:8px;color:var(--muted)}.invite-code b{font-size:14px;letter-spacing:1.7px}.invite-code>span{font-size:9px;color:var(--green);font-weight:700}
+.cloud-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; padding:10px 12px; }.cloud-actions button { border:0; border-radius:11px; padding:10px 5px; background:var(--surface-2); font-size:9px; font-weight:700; }
+.cloud-inline-form { display:grid; grid-template-columns:1fr auto; gap:7px; padding:0 12px 10px; }.cloud-inline-form input{min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:11px;padding:9px;font-size:10px}.cloud-inline-form button{border:0;border-radius:11px;background:var(--ink);color:var(--bg);padding:8px 11px;font-size:9px;font-weight:700}.cloud-inline-form small{grid-column:1/3;color:var(--red);font-size:8px}.cloud-signout{width:100%;border:0;border-top:1px solid var(--line);background:transparent;color:var(--red);padding:12px;font-size:9px}

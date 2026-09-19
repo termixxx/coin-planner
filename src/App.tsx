@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { demoData, loadData, saveData, uid } from './data'
 import type { BudgetData, BudgetScope, Category, Goal, IncomeSource, Participant, PeriodType, Purchase, Transaction } from './types'
+import type { CloudControls } from './CloudShell'
 
 type Page = 'home' | 'operations' | 'add' | 'plan' | 'settings'
 type IconName = 'home' | 'list' | 'plus' | 'plan' | 'settings' | 'arrow' | 'bell' | 'mic' | 'calendar' | 'wallet' | 'close' | 'check' | 'trash' | 'edit' | 'download' | 'upload' | 'moon' | 'chart' | 'target' | 'swap' | 'chevron'
@@ -54,14 +55,33 @@ function nextIncome(data: BudgetData) {
   return candidates.sort((a,b) => a.date.getTime() - b.date.getTime())[0]
 }
 
-function App() {
-  const [data, setData] = useState<BudgetData>(loadData)
+interface AppProps {
+  initialData?: BudgetData
+  currentUserId?: string
+  onDataChange?: (data: BudgetData) => void
+  cloud?: CloudControls
+}
+
+function App({ initialData, currentUserId, onDataChange, cloud }: AppProps = {}) {
+  const [data, setData] = useState<BudgetData>(() => initialData || loadData())
   const [page, setPage] = useState<Page>('home')
   const [sheet, setSheet] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
 
-  useEffect(() => saveData(data), [data])
+  const didMount = useRef(false)
+  const externalRef = useRef(initialData)
+  useEffect(() => {
+    saveData(data)
+    if (didMount.current) onDataChange?.(data)
+    else didMount.current = true
+  }, [data])
+  useEffect(() => {
+    if (initialData && initialData !== externalRef.current) {
+      externalRef.current = initialData
+      setData(initialData)
+    }
+  }, [initialData])
   useEffect(() => {
     const dark = data.settings.theme === 'dark' || (data.settings.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
     document.documentElement.dataset.theme = dark ? 'dark' : 'light'
@@ -93,13 +113,14 @@ function App() {
 
   const content = page === 'home' ? <HomePage {...{data, balance, daily, next, period, categoryBudget, categorySpent, categoryLeft, overspent, setSheet, setPage, setEditingTransaction}} />
     : page === 'operations' ? <OperationsPage {...{data, periodTransactions, patchData, setSheet, setEditingTransaction}} />
-    : page === 'plan' ? <PlanPage {...{data, categoryBudget, categorySpent, categoryLeft, patchData, setSheet, showNotice}} />
-    : <SettingsPage {...{data, setData, patchData, setSheet, showNotice}} />
+    : page === 'plan' ? <PlanPage {...{data, categoryBudget, categorySpent, categoryLeft, patchData, setSheet, showNotice, currentUserId}} />
+    : <SettingsPage {...{data, setData, patchData, setSheet, showNotice, cloud}} />
 
   return <div className="app-shell">
     <main>{content}</main>
     <BottomNav current={page} navigate={navigate} />
-    {sheet === 'transaction' && <TransactionSheet data={data} initial={editingTransaction} onClose={() => setSheet(null)} onSave={transaction => {
+    {sheet === 'transaction' && <TransactionSheet data={data} initial={editingTransaction} currentUserId={currentUserId} onClose={() => setSheet(null)} onSave={transaction => {
+      transaction.createdByUserId ||= currentUserId
       patchData({ transactions: editingTransaction ? data.transactions.map(t => t.id === transaction.id ? transaction : t) : [transaction, ...data.transactions] })
       setSheet(null); showNotice(editingTransaction ? 'Операция обновлена' : transaction.type === 'expense' ? 'Расход добавлен' : 'Доход добавлен')
     }} />}
@@ -162,8 +183,8 @@ function Progress({ value, color }: { value: number; color: string }) { return <
 function Empty({ text }: { text: string }) { return <div className="empty">{text}</div> }
 
 function TransactionRow({ transaction:t, data, onClick }: { transaction: Transaction; data: BudgetData; onClick?:()=>void }) {
-  const cat=data.categories.find(c=>c.id===t.categoryId), person=data.participants.find(p=>p.id===t.participantId)
-  return <button className="transaction-row" onClick={onClick}><span className="emoji" style={{background:t.type==='income'?'var(--green-soft)':`${cat?.color || '#aaa'}20`}}>{t.type==='income'?'↙':cat?.emoji || '•'}</span><div className="grow"><b>{t.comment || (t.type==='income'?'Доход':cat?.name)}</b><small>{shortDate(t.date)} · {person?.name || 'Участник'}</small></div><strong className={t.type==='income'?'positive':''}>{t.type==='income'?'+':'−'} {money(t.amount)}</strong></button>
+  const cat=data.categories.find(c=>c.id===t.categoryId), person=data.participants.find(p=>p.id===t.participantId), creator=data.participants.find(p=>p.userId===t.createdByUserId)
+  return <button className="transaction-row" onClick={onClick}><span className="emoji" style={{background:t.type==='income'?'var(--green-soft)':`${cat?.color || '#aaa'}20`}}>{t.type==='income'?'↙':cat?.emoji || '•'}</span><div className="grow"><b>{t.comment || (t.type==='income'?'Доход':cat?.name)}</b><small>{shortDate(t.date)} · оплатил: {person?.name || 'Участник'}{creator ? ` · записал: ${creator.name}` : ''}</small></div><strong className={t.type==='income'?'positive':''}>{t.type==='income'?'+':'−'} {money(t.amount)}</strong></button>
 }
 
 function OperationsPage({data, periodTransactions, patchData, setSheet, setEditingTransaction}: any) {
@@ -178,7 +199,7 @@ function OperationsPage({data, periodTransactions, patchData, setSheet, setEditi
   </div>
 }
 
-function PlanPage({data,categoryBudget,categorySpent,categoryLeft,patchData,setSheet,showNotice}:any) {
+function PlanPage({data,categoryBudget,categorySpent,categoryLeft,patchData,setSheet,showNotice,currentUserId}:any) {
   const [tab,setTab]=useState<'categories'|'purchases'|'goals'|'analytics'>('categories')
   const activeCats=data.categories.filter((c:Category)=>!c.archived&&(data.settings.personalEnabled||c.scope==='shared'))
   return <div className="page"><PageHeader eyebrow="План и контроль" title="Бюджет" action={<button className="round-add" onClick={()=>setSheet(tab==='goals'?'goal':tab==='categories'?'category':'transfer')}><Icon name="plus"/></button>}/>
@@ -187,16 +208,16 @@ function PlanPage({data,categoryBudget,categorySpent,categoryLeft,patchData,setS
       <button className="transfer-banner" onClick={()=>setSheet('transfer')}><span><Icon name="swap"/></span><div><b>Перевести между категориями</b><small>Перераспределить доступный лимит</small></div><Icon name="chevron"/></button>
       <div className="budget-list">{activeCats.map((cat:Category)=>{const budget=categoryBudget(cat),spent=categorySpent(cat.id),left=categoryLeft(cat),pct=budget?spent/budget*100:0;return <button key={cat.id} className="budget-card" onClick={()=>setSheet(`category:${cat.id}`)}><div className="budget-title"><span className="emoji" style={{background:`${cat.color}20`}}>{cat.emoji}</span><div className="grow"><b>{cat.name}</b><small>{cat.mode==='percent'?`${cat.value}% бюджета`:money(cat.value)} · {cat.scope==='shared'?'Общий':'Личный'}</small></div><Icon name="chevron"/></div><div className="budget-numbers"><span><small>Лимит</small><b>{money(budget)}</b></span><span><small>Потрачено</small><b>{money(spent)}</b></span><span><small>Остаток</small><b className={left<0?'negative':''}>{money(left)}</b></span></div><Progress value={pct} color={pct>100?'var(--red)':pct>80?'var(--yellow)':cat.color}/></button>})}</div>
     </>}
-    {tab==='purchases'&&<Purchases data={data} patchData={patchData} setSheet={setSheet} showNotice={showNotice}/>} 
+    {tab==='purchases'&&<Purchases data={data} patchData={patchData} setSheet={setSheet} showNotice={showNotice} currentUserId={currentUserId}/>}
     {tab==='goals'&&<Goals data={data} patchData={patchData}/>} 
     {tab==='analytics'&&<Analytics data={data} categoryBudget={categoryBudget} categorySpent={categorySpent}/>} 
   </div>
 }
 
-function Purchases({data,patchData,setSheet,showNotice}:any) {
+function Purchases({data,patchData,setSheet,showNotice,currentUserId}:any) {
   const [draft,setDraft]=useState({name:'',price:'',categoryId:data.categories[0]?.id||''})
   const add=(e:FormEvent)=>{e.preventDefault();if(!draft.name||!draft.price)return;patchData({purchases:[...data.purchases,{id:uid(),name:draft.name,price:Number(draft.price),categoryId:draft.categoryId,bought:false}]});setDraft({...draft,name:'',price:''})}
-  const toggle=(item:Purchase)=>{if(!item.bought){const tx:Transaction={id:uid(),type:'expense',amount:item.price,categoryId:item.categoryId,date:today(),participantId:data.participants[0]?.id||'',scope:data.categories.find((c:Category)=>c.id===item.categoryId)?.scope||'shared',comment:item.name};patchData({purchases:data.purchases.map((p:Purchase)=>p.id===item.id?{...p,bought:true,transactionId:tx.id}:p),transactions:[tx,...data.transactions]});showNotice('Покупка отмечена и расход создан')}else patchData({purchases:data.purchases.map((p:Purchase)=>p.id===item.id?{...p,bought:false,transactionId:undefined}:p),transactions:item.transactionId?data.transactions.filter((t:Transaction)=>t.id!==item.transactionId):data.transactions})}
+  const toggle=(item:Purchase)=>{if(!item.bought){const person=data.participants.find((p:Participant)=>p.userId===currentUserId)||data.participants[0];const tx:Transaction={id:uid(),type:'expense',amount:item.price,categoryId:item.categoryId,date:today(),participantId:person?.id||'',scope:data.categories.find((c:Category)=>c.id===item.categoryId)?.scope||'shared',comment:item.name,createdByUserId:currentUserId};patchData({purchases:data.purchases.map((p:Purchase)=>p.id===item.id?{...p,bought:true,transactionId:tx.id}:p),transactions:[tx,...data.transactions]});showNotice('Покупка отмечена и расход создан')}else patchData({purchases:data.purchases.map((p:Purchase)=>p.id===item.id?{...p,bought:false,transactionId:undefined}:p),transactions:item.transactionId?data.transactions.filter((t:Transaction)=>t.id!==item.transactionId):data.transactions})}
   return <><form className="inline-form" onSubmit={add}><input aria-label="Название покупки" placeholder="Что купить?" value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})}/><input aria-label="Цена" inputMode="decimal" placeholder="₽" value={draft.price} onChange={e=>setDraft({...draft,price:e.target.value})}/><select aria-label="Категория" value={draft.categoryId} onChange={e=>setDraft({...draft,categoryId:e.target.value})}>{data.categories.filter((c:Category)=>!c.archived).map((c:Category)=><option key={c.id} value={c.id}>{c.name}</option>)}</select><button><Icon name="plus"/></button></form>
     <section className="list-card purchase-list">{data.purchases.map((item:Purchase)=><div className={`purchase-row ${item.bought?'done':''}`} key={item.id}><button className="purchase-check" onClick={()=>toggle(item)}>{item.bought&&<Icon name="check" size={16}/>}</button><div className="grow"><b>{item.name}</b><small>{data.categories.find((c:Category)=>c.id===item.categoryId)?.name}{item.transactionId?' · связан с расходом':''}</small></div><strong>{money(item.price)}</strong><button className="bare danger-text" onClick={()=>patchData({purchases:data.purchases.filter((p:Purchase)=>p.id!==item.id)})}><Icon name="trash" size={17}/></button></div>)}{!data.purchases.length&&<Empty text="Добавьте первую покупку"/>}</section></>
 }
@@ -239,13 +260,14 @@ function Analytics({data,categoryBudget,categorySpent}:any) {
   </div>
 }
 
-function SettingsPage({data,setData,patchData,setSheet,showNotice}:any) {
+function SettingsPage({data,setData,patchData,setSheet,showNotice,cloud}:any) {
   const fileRef=useRef<HTMLInputElement>(null)
   const updateSettings=(patch:any)=>patchData({settings:{...data.settings,...patch}})
   const allocationTotal=Object.values(data.settings.allocation as Record<string,number>).reduce((a,b)=>a+b,0)
   const exportJson=()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`vmeste-budget-${today()}.json`;a.click();URL.revokeObjectURL(a.href);showNotice('Резервная копия скачана')}
   const importJson=(file?:File)=>{if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(String(reader.result));if(!parsed.categories||!parsed.transactions)throw new Error();setData(parsed);showNotice('Данные восстановлены')}catch{showNotice('Не удалось прочитать файл')}};reader.readAsText(file)}
   return <div className="page settings-page"><PageHeader eyebrow="Всё под вашим контролем" title="Настройки"/>
+    {cloud&&<CloudSettings cloud={cloud} showNotice={showNotice}/>}
     <SettingsGroup title="Распределение дохода" note={allocationTotal!==100?`Сумма долей: ${allocationTotal}%. Нужно 100%.`:undefined}>
       <NumberSetting label="Личные накопления" value={data.settings.allocation.savings} suffix="%" onChange={(v)=>updateSettings({allocation:{...data.settings.allocation,savings:v}})}/>
       <NumberSetting label="Совместный бюджет" value={data.settings.allocation.shared} suffix="%" onChange={(v)=>updateSettings({allocation:{...data.settings.allocation,shared:v}})}/>
@@ -279,13 +301,33 @@ function SettingsGroup({title,note,children}:{title:string;note?:string;children
 function NumberSetting({label,value,suffix,onChange}:{label:string;value:number;suffix:string;onChange:(v:number)=>void}){return <label className="number-setting"><span>{label}</span><span><input type="number" value={value} onChange={e=>onChange(Number(e.target.value))}/>{suffix}</span></label>}
 function ToggleRow({label,detail,checked,onChange}:{label:string;detail:string;checked:boolean;onChange:(v:boolean)=>void}){return <div className="toggle-row"><div><b>{label}</b><small>{detail}</small></div><button className={`toggle ${checked?'on':''}`} onClick={()=>onChange(!checked)}><i/></button></div>}
 
+function CloudSettings({cloud,showNotice}:{cloud:CloudControls;showNotice:(text:string)=>void}) {
+  const [mode,setMode]=useState<'none'|'create'|'join'>('none')
+  const [value,setValue]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+  const submit=async(e:FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{if(mode==='create')await cloud.createHousehold(value||'Наша семья');else await cloud.joinHousehold(value);setValue('');setMode('none');showNotice(mode==='create'?'Семейный бюджет создан':'Вы присоединились к семье')}catch(err){setError(err instanceof Error?err.message:'Не удалось выполнить действие')}finally{setBusy(false)}}
+  const syncText=cloud.syncState==='saving'?'Сохраняем…':cloud.syncState==='error'?'Ошибка синхронизации':'Синхронизировано'
+  return <SettingsGroup title="Аккаунт и семья" note={syncText}>
+    <div className="cloud-account"><span className="avatar" style={{background:'#5b7cfa'}}>{String(cloud.user.user_metadata.display_name||cloud.user.email||'?')[0].toUpperCase()}</span><div className="grow"><b>{String(cloud.user.user_metadata.display_name||'Пользователь')}</b><small>{cloud.user.email}</small></div><span className={`cloud-status ${cloud.syncState}`}/></div>
+    {cloud.households.length>1&&<label className="cloud-select"><span>Текущий бюджет</span><select value={cloud.household.id} onChange={e=>cloud.selectHousehold(e.target.value)}>{cloud.households.map(h=><option key={h.id} value={h.id}>{h.name}</option>)}</select></label>}
+    <div className="family-name"><span>Семейный бюджет</span><b>{cloud.household.name}</b></div>
+    <div className="member-stack">{cloud.members.map((member,index)=><div key={member.user_id}><span className="avatar" style={{background:['#5b7cfa','#f38db8','#50b99b','#9f7aea'][index%4]}}>{member.display_name[0]?.toUpperCase()}</span><div><b>{member.display_name}</b><small>{member.role==='owner'?'Владелец':member.role==='admin'?'Администратор':'Участник'}</small></div></div>)}</div>
+    <button className="invite-code" onClick={async()=>{await navigator.clipboard.writeText(cloud.household.invite_code);showNotice('Код приглашения скопирован')}}><div><small>Код приглашения</small><b>{cloud.household.invite_code}</b></div><span>Скопировать</span></button>
+    <div className="cloud-actions"><button onClick={()=>{setMode(mode==='create'?'none':'create');setValue('');setError('')}}>+ Новая семья</button><button onClick={()=>{setMode(mode==='join'?'none':'join');setValue('');setError('')}}>Ввести код</button></div>
+    {mode!=='none'&&<form className="cloud-inline-form" onSubmit={submit}><input required autoFocus value={value} onChange={e=>setValue(mode==='join'?e.target.value.toUpperCase():e.target.value)} placeholder={mode==='create'?'Название семьи':'Код приглашения'}/><button disabled={busy}>{busy?'…':mode==='create'?'Создать':'Вступить'}</button>{error&&<small>{error}</small>}</form>}
+    <button className="cloud-signout" onClick={()=>cloud.signOut()}>Выйти из аккаунта</button>
+  </SettingsGroup>
+}
+
 function BottomNav({current,navigate}:{current:Page;navigate:(p:Page)=>void}) { const items:[Page,IconName,string][]=[['home','home','Главная'],['operations','list','Операции'],['add','plus','Добавить'],['plan','plan','План'],['settings','settings','Настройки']];return <nav className="bottom-nav">{items.map(([id,icon,label])=>id==='add'?<button key={id} className="nav-add" onClick={()=>navigate(id)}><span><Icon name="plus" size={27}/></span><small>{label}</small></button>:<button key={id} className={current===id?'active':''} onClick={()=>navigate(id)}><Icon name={icon}/><small>{label}</small></button>)}</nav> }
 
 function Sheet({title,subtitle,onClose,children}:{title:string;subtitle?:string;onClose:()=>void;children:React.ReactNode}) {return <div className="sheet-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section className="sheet"><div className="sheet-handle"/><header><div><h2>{title}</h2>{subtitle&&<p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose}><Icon name="close"/></button></header>{children}</section></div>}
 
-function TransactionSheet({data,initial,onClose,onSave}:{data:BudgetData;initial:Transaction|null;onClose:()=>void;onSave:(t:Transaction)=>void}) {
+function TransactionSheet({data,initial,currentUserId,onClose,onSave}:{data:BudgetData;initial:Transaction|null;currentUserId?:string;onClose:()=>void;onSave:(t:Transaction)=>void}) {
   const defaultCat=data.categories.find(c=>!c.archived&&c.scope==='shared')
-  const [form,setForm]=useState<Transaction>(initial||{id:uid(),type:'expense',amount:0,categoryId:defaultCat?.id,date:today(),participantId:data.participants[0]?.id||'',scope:'shared',comment:''})
+  const currentParticipant=data.participants.find(p=>p.userId===currentUserId)
+  const [form,setForm]=useState<Transaction>(initial||{id:uid(),type:'expense',amount:0,categoryId:defaultCat?.id,date:today(),participantId:currentParticipant?.id||data.participants[0]?.id||'',scope:'shared',comment:'',createdByUserId:currentUserId})
   const set=(patch:Partial<Transaction>)=>setForm(f=>({...f,...patch}))
   const submit=(e:FormEvent)=>{e.preventDefault();if(form.amount<=0)return;onSave(form)}
   return <Sheet title={initial?'Редактировать операцию':'Новая операция'} subtitle="Проверьте данные перед сохранением" onClose={onClose}><form className="sheet-form" onSubmit={submit}>

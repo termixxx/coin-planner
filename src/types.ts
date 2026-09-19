@@ -4,7 +4,7 @@ export type CategoryMode = 'percent' | 'fixed'
 export type RolloverRule = 'carry' | 'reset' | 'savings'
 export type PeriodType = 'month' | 'payday' | 'custom'
 
-export interface Participant { id: string; name: string; share: number; color: string }
+export interface Participant { id: string; name: string; share: number; color: string; userId?: string }
 export interface IncomeSource { id: string; name: string; amount: number; days: number[]; enabled: boolean }
 export interface Category {
   id: string; name: string; emoji: string; color: string; scope: BudgetScope
@@ -12,7 +12,7 @@ export interface Category {
 }
 export interface Transaction {
   id: string; type: 'income' | 'expense'; amount: number; categoryId?: string
-  date: string; participantId: string; scope: BudgetScope; comment: string
+  date: string; participantId: string; scope: BudgetScope; comment: string; createdByUserId?: string
 }
 export interface Purchase { id: string; categoryId: string; name: string; price: number; bought: boolean; transactionId?: string }
 export interface Goal { id: string; name: string; target: number; saved: number; regular: number; color: string }

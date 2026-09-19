@@ -18,6 +18,9 @@
 - светлая, тёмная и системная темы;
 - экспорт и импорт полной резервной копии в JSON;
 - локальное хранение в `localStorage`;
+- аккаунты и общие семейные бюджеты через Supabase;
+- приглашения участников по семейному коду;
+- авторство операций и синхронизация изменений между устройствами;
 - PWA и офлайн-кэш;
 - демонстрационные данные.
 
@@ -36,6 +39,17 @@ pnpm run dev
 pnpm run build
 pnpm run preview
 ```
+
+## Supabase
+
+Проект подключён к Supabase `coin-planner`. Публичный publishable key разрешено использовать во фронтенде: доступ к данным защищён политиками Row Level Security.
+
+Для пустой базы выполните SQL-схему из `supabase/schema.sql` через **Supabase → SQL Editor**. Она не переносит старые данные, а создаёт необходимые таблицы и правила доступа с нуля. Затем в **Authentication → URL Configuration** укажите:
+
+- Site URL: `https://termixxx.github.io/coin-planner/`
+- Redirect URL: `https://termixxx.github.io/coin-planner/**`
+
+Для другого Supabase-проекта скопируйте `.env.example` в `.env` и подставьте его URL и publishable key. Никогда не добавляйте `service_role` key во фронтенд или Git.
 
 ## Установка на iPhone
 
